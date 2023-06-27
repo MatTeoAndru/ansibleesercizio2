@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.webServer>
+    <security>
+      <requestFiltering>
+        <fileExtensions allowUnlisted="true">
+          <add fileExtension=".config" allowed="false" />
+        </fileExtensions>
+        <requestLimits maxAllowedContentLength="104857600" />
+        <requestFilteringRules>
+          <filteringRule name="FQDNFilter" scanUrl="true">
+            <scanHeaders>
+              <add requestHeader="Host" />
+            </scanHeaders>
+            <denyStrings>
+              <add string="^fake-site\.mycompany\.com$" />
+            </denyStrings>
+          </filteringRule>
+        </requestFilteringRules>
+      </requestFiltering>
+    </security>
+  </system.webServer>
+</configuration>

@@ -1,0 +1,130 @@
+#Inventory: 
+#[windows] esercizio2  ansible_host=89.186.34.248 ansible_user=Administrator ansible_password=Andruccioli123! ansible_connection=winrm ansible_port=5986 ansible_winrm_server_cert_validation=ignore
+
+# https://geekflare.com/connecting-windows-ansible-from-ubuntu/ 
+#https://www.ansiblepilot.com/articles/configure-a-windows-host-for-ansible-ansible-winrm/
+#ISS: https://tungle.ca/?p=1274
+#https://www.middlewareinventory.com/blog/ansible-inventory_hostname-ansible_hostname-variables/
+#RETRY https://www.middlewareinventory.com/blog/ansible-retry-examples/
+# Certificato automazione https://medium.com/@phylypo/devops-automate-certificate-process-for-iis-5ae3b6788182 windows server
+# https://github.com/holms/ansible-fqdn
+
+#netstat -anp|findstr 5986
+# install pip3 install pywinrm
+
+#Punto 8: Dopo aver eseguito queste modifiche nel tuo playbook, eseguilo per applicare la configurazione. Il sito web predefinito di IIS risponderà sulla porta 8888 e 
+# sarà accessibile solo tramite il FQDN "fake-site.mycompany.com".
+
+# Per testare il funzionamento, inizialmente non è necessario un record DNS reale. Puoi modificare il file hosts (C:\Windows\System32\drivers\etc\hosts) sul 
+# tuo computer Windows per associare l'indirizzo IP della macchina a "fake-site.mycompany.com". Aggiungi la seguente riga al file hosts:
+# <indirizzo_IP> fake-site.mycompany.com
+# In questo modo, il tuo computer indirizzerà le richieste per "fake-site.mycompany.com" all'indirizzo IP specificato,
+#  consentendo di testare l'accesso al sito web tramite il FQDN.
+# Ricorda che, una volta che sei pronto a rendere il sito web accessibile da altre macchine
+
+
+
+
+#1 OK  Base: realizzare un playbook Ansible che si connetta al server via WinRM e applichi le seguenti configurazioni:
+#2 OK Prima di procedere, comunicare ad uno degli amministratori che si sta iniziando a lavorare sull'istanza, in modo che possano effettuare uno snapshot per ripristinare eventualmente la VM in caso di problemi;
+#3 OK Modificare l'hostname a "vm-cognome" e riavviare il server se necessario;
+#5 OK OK Installare 7zip, notepad++ e Chrome all'ultima release mediante il tool chocolatey;
+#6 OK Ogni tanto questo passaggio può dare errore, come gestirli in Ansible?
+#4 OK Installare il web server IIS (Internet Information Services) di Microsoft mediante le funzionalità di Windows Server;
+
+#7 Il web server IIS viene fornito con un sito web di default, modificarne la configurazione in modo che risponda sulla porta 8888 e che il sito sia raggiungibile solo se chiamato con FQDN fake-site.mycompany.com (binding);
+#8 Tip: per testare il funzionamento ti serve davvero un record DNS?
+
+
+#9 Come ultimo step del playbook creare un file di log all'interno del server nel percorso "C:\<UUID RANDOM>_deploy.log" con il seguente contenuto:
+                                                      # Ansible Version: <VERSIONE DI ANSIBLE>
+                                                      # OS Version: <VERSIONE OS>
+                                                      # Ora completamento: <DATA-ORA ATTUALE>
+
+---
+- name: win_ping module demo
+  hosts: windows
+  become: false
+  gather_facts: false
+  tasks:
+    - name: test connection
+      ansible.windows.win_ping:
+
+    # TO DO - name: Install Chocolatey su nuove installazioni
+
+- name: Installazione pacchetto con timeout
+  hosts: windows
+  tasks:
+    - name: Installazione pacchetto utilizzando win_chocolatey
+      win_chocolatey:
+        name: 
+          - googlechrome
+          - 7zip
+          - notepadplusplus
+          - putty
+        state: latest
+      async: 180
+      poll: 0
+      register: install_result
+      ignore_errors: yes
+
+    - name: Controlla lo stato dell'installazione
+      async_status:
+        jid: "{{ install_result.ansible_job_id }}"
+      register: job_status
+      until: job_status.finished
+      retries: 10
+      delay: 10
+
+    - name: Controllo del risultato dell'installazione
+      debug:
+        msg: "L'installazione è stata completata con successo."
+      when: job_status.finished and job_status.failed == false
+
+    - name: Installazione di IIS
+      win_feature:
+        name: Web-Server
+        port: 8888
+        state: present
+        include_sub_features: yes
+        include_management_tools: yes
+
+
+
+    # Remove Default Web Site and the standard port 80 binding
+    # - name: Remove Default Web Site
+    #   win_iis_website:
+    #     name: "Default Web Site"
+    #     state: absent
+
+        
+
+
+    # - name: Configura il filtro di richiesta del FQDN nel file web.config
+    #   win_template:
+    #     src: iss.conf.j2
+    #     dest: C:\inetpub\wwwroot\web.config
+    
+    - name: Restart  IIS
+      win_feature:
+        name: "Web-Server"
+        state: present
+        restart: yes
+
+    - name: Cambio hostname
+      win_hostname:
+        name: test-vm-andru
+
+
+- name: Riavvio del computer Windows se il nome host è diverso
+  hosts: windows
+  tasks:
+    - name: Ottenere il nome host corrente
+      win_shell: hostname
+      register: current_hostname
+
+    - name: Riavvio del computer
+      win_reboot:
+        reboot_timeout: 120
+      become: yes
+      when: current_hostname.stdout | trim != "test-vm-andru"

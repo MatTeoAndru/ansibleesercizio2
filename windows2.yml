@@ -1,0 +1,63 @@
+- name: Configurazione del server Windows
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Comunicazione agli amministratori
+      debug:
+        msg: "Inizio lavori sull'istanza. Effettuare uno snapshot se necessario."
+
+    - name: Modifica dell'hostname
+      win_hostname:
+        name: "test-vm-andru"
+      register: hostname_result
+
+    - name: Riavvio del server se necessario
+      win_reboot:
+      become: yes
+      when: hostname_result.reboot_required
+
+    - name: Installazione di 7zip, Notepad++ e Chrome
+      win_chocolatey:
+        name:
+          - 7zip
+          - notepadplusplus
+          - googlechrome
+        state: latest
+
+    - name: Installazione del web server IIS
+      win_feature:
+        name: Web-Server
+        state: present
+
+    - name: Modify IIS site configuration
+      hosts: windows
+      gather_facts: false
+      tasks:
+        - name: Configure IIS site
+          win_iis_website:
+            name: Default Web Site
+            state: started
+            physical_path: C:\\inetpub\\wwwroot
+            bindings:
+              - protocol: http
+                binding_information: "*:8888:"
+            
+
+
+    - name: Configurazione del filtro di richiesta del FQDN
+      win_template:
+        src: iss.conf.j2
+        dest: C:\inetpub\wwwroot\web.config
+
+    - name: Test di accesso al sito web
+      uri:
+        url: http://fake-site.mycompany.com:8888
+        return_content: yes
+      register: site_response
+      ignore_errors: yes
+
+    - name: Verifica del funzionamento del sito web
+      debug:
+        msg: "Il sito web è funzionante"
+      when: site_response is success
+
